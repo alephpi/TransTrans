@@ -1,12 +1,69 @@
-# ASR 转录 B 站音频（自用脚本）
-将 B 站长视频音频转录为文本
+# 转录转录
+将 B 站长视频音频转录为文本，自用为主
 
 # 工作栈
 
-[Yutto](https://github.com/yutto-dev/yutto)：下载音频
-ffmpeg：音频转码
-[FunASR](https://github.com/modelscope/FunASR)：ASR
+- [Yutto](https://github.com/yutto-dev/yutto)：下载音频
+- ffmpeg：音频转码
+- [FunASR](https://github.com/modelscope/FunASR)：ASR
 
 # 环境配置
+本仓库用 `uv` 管理依赖。~~不用 `uv` 的，我想你们肯定知道怎么做。~~
+
+## 仅使用
+```sh
+git clone 
+uv venv
+uv sync --production
+```
+
+## 开发
+```sh
+git clone 
+uv venv
+uv sync
+```
 
 # 使用方式
+
+## 示例
+以 BV1iddQYQE7D 为例，运行
+```sh
+source .venv/bin/activate
+python main.py BV1iddQYQE7D -w hotwords.txt
+```
+或者
+```sh
+uv python main.py BV1iddQYQE7D -w hotwords.txt
+```
+
+这将首先调用 `yutto` 下载音频，然后经过 `ffmpeg` 转码，然后用 `FunASR` 转录得到文本（有带时间戳字幕和纯文本两种）。
+
+`batch_size_s=300`时，显存占用约 2G。
+
+# 配置要求
+- 系统自行安装 ffmpeg（windows 注意配置其安装路径到环境变量）
+- GPU 显存不少于 4G，如果运行时超出，适当缩小 `batch_size_s` 即可。
+
+# Debug notes
+无论原音频编码如何，在 FunASR 中都以`torchaudio`导入并重采样至 16khz 处理。
+
+仍以 BV1iddQYQE7D 为例（时长两小时），yutto 提供三种码率的`m4a`音频，编码均为 `aac`，其属性值如下（`torchaudio.info`）
+
+|  码率   | 大小 | 采样率 | 帧数 |
+| :-----: | :--: | :----: | :--: |
+| 64kbps  | 35M  | 48khz  | 180k |
+| 128kbps | 77M  | 48khz  | 360k |
+| 320kbps | 138M | 48khz  | 360k |
+
+对这些不同码率的音频，无论是 `torchaudio` 内部的重采样还是用 `ffmpeg` 的重采样，都得到 235M 的 `wav` 文件，且对识别结果无显著影响。
+
+平均转录时长/音频时长比例（rtf_avg）为 0.008，即两小时音频一分钟转录完毕。
+
+# Experiments
+比较 sensevoice-small 与 paraformer 的表现。
+
+# TODO
+- [x] 文本转录
+- [ ] 清理口语化表达
+- [ ] 自动切片
