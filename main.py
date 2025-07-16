@@ -38,7 +38,7 @@ def load_hotwords(file):
 def asr(model: AutoModel, audio_file: Path, hotwords=[]):
     transcript = model.generate(
         input=str(audio_file),
-        batch_size_s=10,
+        batch_size_s=300,
         hotword=" ".join(hotwords),
         sentence_timestamp=True,  # return sentence level information when spk_model is not given
     )
