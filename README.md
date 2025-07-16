@@ -12,14 +12,16 @@
 
 ## 仅使用
 ```sh
-git clone 
+git clone https://github.com/alephpi/TransTrans.git
+cd TransTrans
 uv venv
 uv sync --production
 ```
 
 ## 开发
 ```sh
-git clone 
+git clone https://github.com/alephpi/TransTrans.git
+cd TransTrans
 uv venv
 uv sync
 ```
@@ -37,13 +39,11 @@ python main.py BV1iddQYQE7D -w hotwords.txt
 uv python main.py BV1iddQYQE7D -w hotwords.txt
 ```
 
-这将首先调用 `yutto` 下载音频，然后经过 `ffmpeg` 转码，然后用 `FunASR` 转录得到文本（有带时间戳字幕和纯文本两种）。
-
-`batch_size_s=300`时，显存占用约 2G。
+这将首先调用 `yutto` 下载音频，然后经过 `ffmpeg` 转码，然后用 `FunASR` 转录得到文本（有带时间戳字幕和纯文本两种），期间处理结果均保存于 `data/{bvid}` 文件夹下。
 
 # 配置要求
 - 系统自行安装 ffmpeg（windows 注意配置其安装路径到环境变量）
-- GPU 显存不少于 4G，如果运行时超出，适当缩小 `batch_size_s` 即可。
+- GPU 显存不少于 4G，如果运行时超出，适当缩小 `batch_size_s` 即可，`batch_size_s=300`时，显存占用约 2G。
 
 # Debug notes
 无论原音频编码如何，在 FunASR 中都以`torchaudio`导入并重采样至 16khz 处理。
