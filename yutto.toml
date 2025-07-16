@@ -1,0 +1,11 @@
+[basic]
+dir = "./data/"
+audio_quality = 30232
+subpath_template = "{bvid}/audio"
+
+[resource]
+require_video = false
+require_audio = true
+require_danmaku = false
+require_subtitle = false
+require_cover = false

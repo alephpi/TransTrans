@@ -1,0 +1,13 @@
+[project]
+name = "qiepian-helper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "funasr>=1.2.6",
+    "modelscope>=1.28.0",
+    "torch==2.1.2",
+    "torchaudio>=2.1.2",
+    "yutto>=2.0.3",
+]
