@@ -12,3 +12,10 @@ dependencies = [
     "torchaudio>=2.1.2",
     "yutto>=2.0.3",
 ]
+
+[dependency-groups]
+dev = [
+    "debugpy>=1.8.15",
+    "jupyterlab>=4.4.4",
+    "matplotlib>=3.10.3",
+]

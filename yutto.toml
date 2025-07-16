@@ -1,6 +1,6 @@
 [basic]
 dir = "./data/"
-audio_quality = 30232
+audio_quality = 30280
 subpath_template = "{bvid}/audio"
 
 [resource]
