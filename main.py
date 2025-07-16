@@ -82,5 +82,14 @@ if __name__ == "__main__":
     parser.add_argument("bvid", type=str, help="bv number")
     # parser.add_argument("-i,--input_file", required=True, type=str, help="input audio file")
     parser.add_argument("-w","--hotwords", required=False, default=None, type=str, help="file of hotword list")
+    parser.add_argument("-d", "--debug", action="store_true", help="debug mode")
     args = parser.parse_args()
+    if args.debug:
+        import debugpy
+        try:
+            debugpy.listen(('localhost', 9501))
+            print('Waiting for debugger attach')
+            debugpy.wait_for_client()
+        except Exception as e:
+            pass
     main(args)
