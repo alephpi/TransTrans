@@ -41,6 +41,9 @@ uv python main.py BV1iddQYQE7D -w hotwords.txt
 
 这将首先调用 `yutto` 下载音频，然后经过 `ffmpeg` 转码，然后用 `FunASR` 转录得到文本（有带时间戳字幕和纯文本两种），期间处理结果均保存于 `data/{bvid}` 文件夹下。
 
+## 自定义热词
+可在 `hotwords.txt` 中逐行添加音频中出现的高频词汇，以提高识别准确率。
+
 # 配置要求
 - 系统自行安装 ffmpeg（windows 注意配置其安装路径到环境变量）
 - GPU 显存不少于 4G，如果运行时超出，适当缩小 `batch_size_s` 即可，`batch_size_s=300`时，显存占用约 2G。
