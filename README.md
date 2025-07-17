@@ -48,7 +48,12 @@ uv python main.py BV1iddQYQE7D -w hotwords.txt
 - 系统自行安装 ffmpeg（windows 注意配置其安装路径到环境变量）
 - GPU 显存不少于 4G，如果运行时超出，适当缩小 `batch_size_s` 即可，`batch_size_s=300`时，显存占用约 2G。
 
-# Debug notes
+# 笔记
+
+## 模型选型
+根据 [论文](https://arxiv.org/pdf/2407.04051) 表格 6，Paraformer-zh 在 CER 和 RTF 上都达到最好。故不考虑 SenseVoice-small。
+
+## 转录（`transcript.py`）
 无论原音频编码如何，在 FunASR 中都以`torchaudio`导入并重采样至 16khz 处理。
 
 仍以 BV1iddQYQE7D 为例（时长两小时），yutto 提供三种码率的`m4a`音频，编码均为 `aac`，其属性值如下（`torchaudio.info`）
@@ -63,8 +68,17 @@ uv python main.py BV1iddQYQE7D -w hotwords.txt
 
 平均转录时长/音频时长比例（rtf_avg）为 0.008，即两小时音频一分钟转录完毕。
 
+funasr AutoModel 在 `punc_model` 空置时， `sentence_timestamp=True` 时报错。
+
+## 清理口语化表达（`deoral.py`）
+
+口语化特征：
+1. 填充词 filler：就是、什么的、他妈的
+2. 重复、修正 repetition
+3. 语气词：哎呀
+4. 成分省略
+
 # Experiments
-比较 sensevoice-small 与 paraformer 的表现。
 
 # TODO
 - [x] 文本转录
