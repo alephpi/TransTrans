@@ -20,7 +20,7 @@ class Transcript:
         self.qikou: int = self.avg_char_duration # 初始化气口长度与平均字符时长相同
         self.char_intervals: NDArray[np.int32] = np.append(self.timestamps[1:,0] - self.timestamps[:-1,1], 10*self.qikou)
         self.punc_list: NDArray[np.str_] = np.array(['', '', '，', '。', '？', '、']) # align with funasr
-        self.is_hanzi: NDArray[np.bool_] = np.vectorize(lambda x: ~x.isascii())(self.chars)
+        self.is_hanzi: NDArray[np.bool_] = ~np.vectorize(lambda x: x.isascii())(self.chars)
         self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
 
     @classmethod
@@ -38,6 +38,10 @@ class Transcript:
                 chars.append(d[0])
                 timestamps.append(tuple(d[1]))
         return cls(chars, timestamps)
+    
+    def chinese_only(self):
+        self.mask = self.is_hanzi
+        self.update()
 
     def remove(self, indices: list[int]):
         indices = list(set(indices))
