@@ -6,6 +6,8 @@ from transcript import (
     asr,
     load_all_hotwords,
     load_asr_model,
+    load_punc_model,
+    punctuate,
 )
 
 
@@ -22,11 +24,14 @@ def convert_audio(bvid):
 def main(args):
     download_audio(args.bvid)
     audio = convert_audio(args.bvid)
-    model = load_asr_model()
+    asr_model = load_asr_model()
     hotwords = load_all_hotwords(Path(args.hotwords)) if args.hotwords else None
-    transcript = asr(model, audio, hotwords)
-    transcript.to_json(audio.parent / "transcript.json")
-    transcript.to_txt(audio.parent / "transcript.txt")
+    transcript = asr(asr_model, audio, hotwords)
+    punc_model = load_punc_model()
+    transcript = punctuate(punc_model, transcript)
+    transcript.to_txt(audio.parent / "transcript.txt", with_punc=True)
+    transcript.save(audio.parent / "transcript.pkl")
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()

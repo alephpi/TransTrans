@@ -1,71 +1,100 @@
 import json
+import logging
+import pickle
 from pathlib import Path
+from typing import Optional
 
+import numpy as np
 from funasr import AutoModel
+from numpy.typing import NDArray
 
 
 class Transcript:
-    def __init__(self, data: list[tuple[str, tuple[int, int]]]):
-        self.data = data
-        self.original_text_len = self.text_len
-        self.original_duration = self.data[-1][1][-1]
-        self.time_per_char: int = int(self.original_duration / self.original_text_len)
-        self.qikou: int = self.time_per_char # 初始化气口长度与平均字符时长相同
+    def __init__(self, chars: list[str], timestamps: list[tuple[int, int]]):
+        self.chars: NDArray[np.str_] = np.array(chars)
+        self.timestamps: NDArray[np.int32] = np.array(timestamps)
+        self.original_text_len: int = len(self.chars)
+        self.original_duration: int = self.timestamps[-1][-1]
+        self.char_durations: NDArray[np.int32] = self.timestamps[:,1] - self.timestamps[:,0]
+        self.avg_char_duration: int = self.char_durations.sum() // self.original_text_len
+        self.qikou: int = self.avg_char_duration # 初始化气口长度与平均字符时长相同
+        self.char_intervals: NDArray[np.int32] = np.append(self.timestamps[1:,0] - self.timestamps[:-1,1], 10*self.qikou)
+        self.punc_list: NDArray[np.str_] = np.array(['', '', '，', '。', '？', '、']) # align with funasr
+        self.is_hanzi: NDArray[np.bool_] = np.vectorize(lambda x: ~x.isascii())(self.chars)
+        self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
 
     @classmethod
     def from_char_timestamp(cls, chars: list[str], timestamps: list[tuple[int, int]]):
         assert len(chars) == len(timestamps), "length of chars and timestamps mismatch"
-        data = list(zip(chars, timestamps))
-        return cls(data)
+        return cls(chars, timestamps)
 
     @classmethod
     def from_json(cls, file_path: Path):
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            data = [(d[0], tuple(d[1])) for d in data]
-        return cls(data)
+            chars = []
+            timestamps = []
+            for d in data:
+                chars.append(d[0])
+                timestamps.append(tuple(d[1]))
+        return cls(chars, timestamps)
 
     def remove(self, indices: list[int]):
         indices = list(set(indices))
-        indices = sorted(indices, reverse=True)
-        for i in indices:
-            del self.data[i]
+        self.mask[indices] = False
+        self.update()
 
-    def set_qikou(self, ratio=1, ms:int =0):
-        if ms:
+    def set_qikou(self, ratio=1, ms:Optional[int]=None):
+        if ms is not None:
             self.qikou = ms
         else:
-            self.qikou = int(ratio * self.time_per_char)
+            self.qikou = int(ratio * self.avg_char_duration)
+    
+    def update(self):
+        self.chars = self.chars[self.mask]
+        self.timestamps = self.timestamps[self.mask]
+        self.char_durations = self.char_durations[self.mask]
+        self.char_intervals = self.char_intervals[self.mask]
+        self.is_hanzi = self.is_hanzi[self.mask]
+        self.mask = np.ones(len(self.chars), dtype=np.bool_)
+    
+    @property
+    def punc_array(self) -> NDArray[np.uint8]:
+        return np.where(self.char_intervals > self.qikou, 2, 1) # 2 for comma, 1 for no punc, align with funasr output
 
     @property
     def text(self):
-        return "".join(d[0] for d in self.data)
+        return "".join(self.chars_format)
+    
+    @property
+    def text_with_punc(self):
+        puncs = self.punc_list[self.punc_array]
+        # puncs = (self.punc_list[punc_id] for punc_id in self.punc_array)
+        chars_with_punc = np.char.add(self.chars_format, puncs)
+        return "".join(chars_with_punc)
 
     @property
-    def text_list(self):
-        return [d[0] for d in self.data]
+    def chars_format(self):
+        # 若为英文单词则在前面加空格
+        is_word = ~self.is_hanzi
+        left_is_word = np.roll(is_word, 1)
+        left_is_word[0] = False  # 左边界补0
+        add_space: NDArray[np.str_] = np.where(is_word & left_is_word, ' ', '')
 
-    @property
-    def timestamps(self):
-        return [d[1] for d in self.data]
+        return np.char.add(add_space, self.chars)
 
     @property
     def text_len(self):
-        return len(self.text)
+        return len(self.chars)
 
     @property
     def time_len(self):
-        active = 0
-        pause = 0
-        prev_t_end = 0
-        for t_begin, t_end in self.timestamps:
-            active += t_end - t_begin
-            pause += min(t_begin - prev_t_end, self.qikou) # 若前后两个字之间有停顿，停顿最长不超过气口，以此进一步压缩时长
-            prev_t_end = t_end
+        active_duration: int = self.char_durations.sum()
+        pause_duration: int = np.clip(self.char_intervals, a_min=None, a_max=self.qikou).sum()
 
-        total = active + pause
-        return total
-    
+        total_duration = active_duration + pause_duration
+        return total_duration
+
     def stats(self):
         print(f"文本原长 {self.original_text_len} 字，现长 {self.text_len} 字")
         print(f"音频原长 {convert_time(self.original_duration)}，现长 {convert_time(self.time_len)}")
@@ -75,11 +104,24 @@ class Transcript:
 
     def to_json(self, file_path):
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=False)
+            data = list(zip(self.chars, self.timestamps))
+            json.dump(data, f, ensure_ascii=False)
 
-    def to_txt(self, file_path):
+    def to_txt(self, file_path, with_punc=False):
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(self.text)
+            if with_punc:
+                f.write(self.text_with_punc)
+            else:
+                f.write(self.text)
+
+    @classmethod
+    def load(cls, file_path):
+        with open(file_path, "rb") as f:
+            return pickle.load(f)
+
+    def save(self, file_path):
+        with open(file_path, "wb") as f:
+            pickle.dump(self, f)
 
 def load_asr_model():
     # paraformer-zh is a multi-functional asr model
@@ -89,9 +131,18 @@ def load_asr_model():
         model_revision="v2.0.4",
         vad_model="fsmn-vad",
         vad_model_revision="v2.0.4",
-        # punc_model="ct-punc",
+        # punc_model="ct-punc-c",
         # punc_model_revision="v2.0.4",
         # spk_model="cam++", spk_model_revision="v2.0.2",
+        hub="ms",
+    )
+    return model
+
+def load_punc_model():
+    # ct-punc-c is a punc model for chinese, don't confuse it with ct-punc
+    model = AutoModel(
+        model="ct-punc-c",
+        model_revision="v2.0.4",
         hub="ms",
     )
     return model
@@ -101,6 +152,7 @@ def load_all_hotwords(dir_path: Path):
     for file in dir_path.iterdir():
         hotwords = load_hotwords(file)
         all_hotwords.extend(hotwords)
+    logging.info(f"{all_hotwords=}")
     return all_hotwords
 
 
@@ -121,6 +173,16 @@ def asr(model: AutoModel, audio_file: Path, hotwords=[]):
     timestamps = transcript[0]['timestamp']
     timestamps = [tuple(t) for t in timestamps]
     transcript = Transcript.from_char_timestamp(chars, timestamps)
+    return transcript
+
+def punctuate(model: AutoModel, transcript: Transcript):
+    """标点符号识别"""
+    res = model.generate(transcript.text)
+    punc_array_infered_by_model = res[0]['punc_array'].tolist()
+    punc_array_infered_from_interval = transcript.punc_array
+    assert len(punc_array_infered_by_model) == len(punc_array_infered_from_interval), f"length of puncs mismatch, get {len(punc_array_infered_by_model)=} and {len(punc_array_infered_from_interval)=}"
+    punc_array_merged = [max(p1, p2) for p1, p2 in zip(punc_array_infered_by_model, punc_array_infered_from_interval)]
+    transcript.punc_array = punc_array_merged
     return transcript
 
 def convert_time(timestamp):
