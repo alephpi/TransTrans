@@ -1,9 +1,9 @@
-import abc
 from itertools import product
 from pathlib import Path
 
 
 class Phrase:
+    tag = ''
     @classmethod
     def filter(cls, phrases):
         return [p for p in phrases if len(p) > 1] # 过滤掉空字符串和单字
@@ -14,13 +14,15 @@ class Phrase:
     
     @classmethod
     def export(cls):
-        DIR = Path("./orals")
+        DIR = Path("./dicts")
         DIR.mkdir(exist_ok=True)
         phrases = cls.generate()
-        with open(DIR / f"{(cls.__name__).lower()}.oral", "w", encoding="utf-8") as f:
-            f.write("\n".join(phrases))
+        with open(DIR / cls.__name__.lower(), "w", encoding="utf-8") as f:
+            for phrase in phrases:
+                f.write(f"{phrase} {cls.tag}\n")
 
 class Query(Phrase):
+    tag = 'query'
 
     subject = ["你", ""]
     verb = ["懂", "明白", "知道", "了解", "理解", "记得"]
@@ -60,17 +62,16 @@ class Query(Phrase):
         return cls.filter(case1 + case2 + case3 + case4)
 
 class Curse(Phrase):
+    tag = 'curse'
 
-    subject = ["我", ""]
-    verb = ["操","干","日"]
-    complement = ["烂","翻","死","爆","碎","完"]
-    # perfect_tense = ["了", ""]
-    pronoun = ["你","他"] # + ["她","它"]
+    w = ["我"]
+    c = ["操","干","日"]
+    # complement = ["烂","翻","死","爆","碎","完"]
+    n = ["你","他"] # + ["她","它"]
     # pronoun_plural = ["们",""]
     m = ["妈"]
-    lg = ["个","了个",""]
-    b = ["逼"]
-    # d = ["的",""]
+    b = ["逼","巴子","个逼","了个逼","了巴子","个巴子","了个巴子",""]
+    d = ["的",""]
 
     @classmethod
     def generate(cls):
@@ -79,29 +80,55 @@ class Curse(Phrase):
         #     cls.complement,
         #     # cls.perfect_tense,
         # )]
-        # case1 更接近表程度，而非填充词
+        # # case1 更接近表程度，而非填充词
 
-        case2 = ["".join(p) for p in product(
-            cls.subject,
-            cls.verb,
-            # cls.perfect_tense,
-        )]
+        # case2 = ["".join(p) for p in product(
+        #     cls.subject,
+        #     cls.verb,
+        #     cls.perfect_tense,
+        # )]
 
-        case3 = ["".join(p) for p in product(
-            cls.pronoun,
-            # cls.pronoun_plural,
-            cls.m,
-            # cls.d,
+        # case3 = ["".join(p) for p in product(
+        #     cls.pronoun,
+        #     # cls.pronoun_plural,
+        #     cls.m,
+        #     cls.d,
+        #     )]
+
+        # case4 = ["".join(p) for p in product(
+        #     cls.m,
+        #     cls.lg,
+        #     cls.b,
+        #     cls.d,
+        # )]
+
+        cas1 = ["".join(p) for p in product(
+            cls.w,
+            cls.c
             )]
 
-        case4 = ["".join(p) for p in product(
+        cas2 = ["".join(p) for p in product(
+            cls.n,
             cls.m,
-            cls.lg,
             cls.b,
-            # cls.d,
-        )]
+            cls.d
+            )]
 
-        return cls.filter(case2 + case3 + case4)
+        cas3 = ["".join(p) for p in product(
+            cls.m,
+            cls.b,
+            cls.d
+            )]
+
+        cas4 = ["".join(p) for p in product(
+            cls.c,
+            cls.n,
+            cls.m,
+            cls.b,
+            cls.d
+            )]
+
+        return cls.filter(cas1+cas2+cas3+cas4)
 
 
 # 使用示例
