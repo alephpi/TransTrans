@@ -1,6 +1,6 @@
 import json
-import logging
 import pickle
+from argparse import ArgumentParser, RawTextHelpFormatter
 from pathlib import Path
 from typing import Optional
 
@@ -8,11 +8,13 @@ import numpy as np
 from funasr import AutoModel
 from numpy.typing import NDArray
 
+from utils import convert_time, load_dict
+
 
 class Transcript:
     def __init__(self, chars: list[str], timestamps: list[tuple[int, int]]):
         self.chars: NDArray[np.str_] = np.array(chars)
-        self.timestamps: NDArray[np.int32] = np.array(timestamps)
+        self.timestamps: NDArray[np.int32] = np.array(timestamps, dtype=np.int32)
         self.original_text_len: int = len(self.chars)
         self.original_duration: int = self.timestamps[-1][-1]
         self.char_durations: NDArray[np.int32] = self.timestamps[:,1] - self.timestamps[:,0]
@@ -20,6 +22,7 @@ class Transcript:
         self.qikou: int = self.avg_char_duration # 初始化气口长度与平均字符时长相同
         self.char_intervals: NDArray[np.int32] = np.append(self.timestamps[1:,0] - self.timestamps[:-1,1], 10*self.qikou)
         self.punc_list: NDArray[np.str_] = np.array(['', '', '，', '。', '？', '、']) # align with funasr
+        self.punc_array: NDArray[np.uint8] = np.ones_like(self.chars, dtype=np.uint8)
         self.is_hanzi: NDArray[np.bool_] = ~np.vectorize(lambda x: x.isascii())(self.chars)
         self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
 
@@ -59,12 +62,15 @@ class Transcript:
         self.timestamps = self.timestamps[self.mask]
         self.char_durations = self.char_durations[self.mask]
         self.char_intervals = self.char_intervals[self.mask]
+        self.punc_array = self.punc_array[self.mask]
         self.is_hanzi = self.is_hanzi[self.mask]
         self.mask = np.ones(len(self.chars), dtype=np.bool_)
-    
-    @property
-    def punc_array(self) -> NDArray[np.uint8]:
-        return np.where(self.char_intervals > self.qikou, 2, 1) # 2 for comma, 1 for no punc, align with funasr output
+
+    def update_punc_array(self, low=None, high=None):
+        low = self.qikou if low is None else low
+        high = 3*self.qikou if high is None else high
+        self.punc_array[(low < self.char_intervals) & (self.char_intervals < high)] = 2
+        self.punc_array[self.char_intervals >= high] = 3
 
     @property
     def text(self):
@@ -108,7 +114,7 @@ class Transcript:
 
     def to_json(self, file_path):
         with open(file_path, "w", encoding="utf-8") as f:
-            data = list(zip(self.chars, self.timestamps))
+            data = list(zip(self.chars.tolist(), self.timestamps.tolist()))
             json.dump(data, f, ensure_ascii=False)
 
     def to_txt(self, file_path, with_punc=False):
@@ -151,20 +157,6 @@ def load_punc_model():
     )
     return model
 
-def load_all_hotwords(dir_path: Path):
-    all_hotwords = []
-    for file in dir_path.iterdir():
-        hotwords = load_hotwords(file)
-        all_hotwords.extend(hotwords)
-    logging.info(f"{all_hotwords=}")
-    return all_hotwords
-
-
-def load_hotwords(file_path: Path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        hotwords = [line.strip() for line in f.readlines()]
-    return hotwords
-
 def asr(model: AutoModel, audio_file: Path, hotwords=[]):
     """转录文本+字符级时间戳"""
     transcript = model.generate(
@@ -182,34 +174,42 @@ def asr(model: AutoModel, audio_file: Path, hotwords=[]):
 def punctuate(model: AutoModel, transcript: Transcript):
     """标点符号识别"""
     res = model.generate(transcript.text)
-    punc_array_infered_by_model = res[0]['punc_array'].tolist()
-    punc_array_infered_from_interval = transcript.punc_array
-    assert len(punc_array_infered_by_model) == len(punc_array_infered_from_interval), f"length of puncs mismatch, get {len(punc_array_infered_by_model)=} and {len(punc_array_infered_from_interval)=}"
-    punc_array_merged = [max(p1, p2) for p1, p2 in zip(punc_array_infered_by_model, punc_array_infered_from_interval)]
-    transcript.punc_array = punc_array_merged
+    punc_array_infered_by_model = res[0]['punc_array'].cpu().numpy()
+    transcript.punc_array = punc_array_infered_by_model
+    # punc_array_infered_from_interval = transcript.punc_array
+    # assert len(punc_array_infered_by_model) == len(punc_array_infered_from_interval), f"length of puncs mismatch, get {len(punc_array_infered_by_model)=} and {len(punc_array_infered_from_interval)=}"
+    # punc_array_merged = np.maximum(punc_array_infered_by_model, punc_array_infered_from_interval)
+    # transcript.punc_array = punc_array_merged
     return transcript
 
-def convert_time(timestamp):
-    """convert milleseconds to hh:mm:ss:ms format
-    """
-    milliseconds = timestamp % 1000
-    seconds = timestamp / 1000
-    minutes = seconds // 60
-    seconds = seconds % 60
-    hours = minutes // 60
-    minutes = minutes % 60
-    return "%d:%02d:%02d.%03d" % (hours, minutes, seconds, milliseconds)
+def init_parser():
+    parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
+    parser.add_argument("-i","--input_file", required=False, type=str, default='data/BV1iddQYQE7D/audio.wav', help="input audio file")
+    parser.add_argument("-w","--hotwords", required=False, default='hot', type=str, help="hotword dict file")
+    return parser
 
-def export(transcript, audio: Path):
-    """ export subtitle file
-    """
-    output_dir = audio.parent
-    srt = output_dir / "subtitle.srt"
-    txt = output_dir / "plain.txt"
-    with open(srt, "w", encoding="utf-8") as f:
-        for s in transcript[0]["sentence_info"]:
-            start = convert_time(s["start"])
-            end = convert_time(s["end"])
-            print(f'{start}->{end}, {s["text"]}', file=f)
-    with open(txt, "w", encoding="utf-8") as f:
-        print(transcript[0]['text'], file=f)
+def main(args):
+    audio = Path(args.input_file)
+    asr_model = load_asr_model()
+    hotwords, _ = load_dict(args.hotwords)
+    transcript = asr(asr_model, audio, hotwords)
+    # punc_model = load_punc_model()
+    # transcript = punctuate(punc_model, transcript)
+    transcript.update_punc_array(0, 1000)
+    transcript.to_txt(audio.parent / "transcript.txt", with_punc=True)
+    transcript.save(audio.parent / "transcript.pkl")
+
+
+if __name__ == "__main__":
+    parser = init_parser()
+    parser.add_argument("--debug", action="store_true", help="debug mode")
+    args = parser.parse_args()
+    if args.debug:
+        import debugpy
+        try:
+            debugpy.listen(('localhost', 9501))
+            print('Waiting for debugger attach')
+            debugpy.wait_for_client()
+        except Exception as e:
+            pass
+    main(args)
