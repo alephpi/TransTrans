@@ -21,6 +21,30 @@ class Phrase:
             for phrase in phrases:
                 f.write(f"{phrase} {cls.tag}\n")
 
+class Common(Phrase):
+    tag = ''
+
+    prefix1 = ["这", "那", "一"]
+    suffix1 = ["个","种","些","样"]
+
+    prefix2 = ["就","不","而"]
+    suffix2 = ["是"]
+
+    @classmethod
+    def generate(cls):
+        cas1 = ["".join(p) for p in product(
+            cls.prefix1,
+            cls.suffix1,
+            )] 
+
+        cas2 = ["".join(p) for p in product(
+            cls.prefix2,
+            cls.suffix2,
+            )] 
+        
+        cas3 = ["的话"]
+        return cls.filter(cas1+cas2+cas3)
+
 class Query(Phrase):
     tag = 'query'
 
@@ -75,32 +99,6 @@ class Curse(Phrase):
 
     @classmethod
     def generate(cls):
-        # case1 = ["".join(p) for p in product(
-        #     cls.verb,
-        #     cls.complement,
-        #     # cls.perfect_tense,
-        # )]
-        # # case1 更接近表程度，而非填充词
-
-        # case2 = ["".join(p) for p in product(
-        #     cls.subject,
-        #     cls.verb,
-        #     cls.perfect_tense,
-        # )]
-
-        # case3 = ["".join(p) for p in product(
-        #     cls.pronoun,
-        #     # cls.pronoun_plural,
-        #     cls.m,
-        #     cls.d,
-        #     )]
-
-        # case4 = ["".join(p) for p in product(
-        #     cls.m,
-        #     cls.lg,
-        #     cls.b,
-        #     cls.d,
-        # )]
 
         cas1 = ["".join(p) for p in product(
             cls.w,
@@ -133,5 +131,6 @@ class Curse(Phrase):
 
 # 使用示例
 if __name__ == "__main__":
+    Common.export()
     Query.export()
     Curse.export()
