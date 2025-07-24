@@ -26,6 +26,9 @@ class Transcript:
         self.is_hanzi: NDArray[np.bool_] = ~np.vectorize(lambda x: x.isascii())(self.chars)
         self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
 
+        from annotate import Annotation
+        self.annotation: Optional[Annotation] = None
+
     @classmethod
     def from_char_timestamp(cls, chars: list[str], timestamps: list[tuple[int, int]]):
         assert len(chars) == len(timestamps), "length of chars and timestamps mismatch"
@@ -125,13 +128,14 @@ class Transcript:
                 f.write(self.text)
 
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path) -> 'Transcript':
         with open(file_path, "rb") as f:
             return pickle.load(f)
 
     def save(self, file_path):
         with open(file_path, "wb") as f:
             pickle.dump(self, f)
+        print(f"transcript dumped to {file_path}")
 
 def load_asr_model():
     # paraformer-zh is a multi-functional asr model
@@ -193,12 +197,9 @@ def main(args):
     asr_model = load_asr_model()
     hotwords, _ = load_dict(args.hotwords)
     transcript = asr(asr_model, audio, hotwords)
-    # punc_model = load_punc_model()
-    # transcript = punctuate(punc_model, transcript)
-    transcript.update_punc_array(0, 1000)
+    transcript.update_punc_array()
     transcript.to_txt(audio.parent / "transcript.txt", with_punc=True)
     transcript.save(audio.parent / "transcript.pkl")
-
 
 if __name__ == "__main__":
     parser = init_parser()
