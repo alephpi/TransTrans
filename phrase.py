@@ -2,11 +2,10 @@ from itertools import product
 from pathlib import Path
 
 
+def filter(phrases):
+    return [p for p in phrases if len(p) > 1] # 过滤掉空字符串和单字
 class Phrase:
-    tag = ''
-    @classmethod
-    def filter(cls, phrases):
-        return [p for p in phrases if len(p) > 1] # 过滤掉空字符串和单字
+    tag = 'phrase'
 
     @classmethod
     def generate(cls):
@@ -17,35 +16,60 @@ class Phrase:
         DIR = Path("./dicts")
         DIR.mkdir(exist_ok=True)
         phrases = cls.generate()
-        with open(DIR / cls.__name__.lower(), "w", encoding="utf-8") as f:
+        with open(DIR / cls.__name__, "w", encoding="utf-8") as f:
             for phrase in phrases:
                 f.write(f"{phrase} {cls.tag}\n")
 
-class Common(Phrase):
-    tag = ''
+class 指示代词(Phrase):
+    # 指示代词词常用于填充，例如“这个”，但本身不完全等同于填充，部分情况需保留
+    # 指示代词往往相当于定冠词 the，而定冠词并不存在于中文，中文的特指性用指示代词表示。
+    tag = 'rd' #pronoun demonstrative
 
-    prefix1 = ["这", "那", "一"]
-    suffix1 = ["个","种","些","样"]
-
-    prefix2 = ["就","不","而"]
-    suffix2 = ["是"]
+    prefix = ["这","那"]
+    suffix = ["个","种","些","样"]
 
     @classmethod
     def generate(cls):
         cas1 = ["".join(p) for p in product(
-            cls.prefix1,
-            cls.suffix1,
+            cls.prefix,
+            cls.suffix,
             )] 
 
-        cas2 = ["".join(p) for p in product(
-            cls.prefix2,
-            cls.suffix2,
+        return filter(cas1)
+
+
+class 不定代词(Phrase):
+    # 不定代词常用于填充，例如“一个、什么”，但本身不完全等同于填充，部分情况需保留
+    # 不定代词往往相当于不定冠词 a，但中文里没有不定冠词，中文的泛指性用单位数词表示
+    tag = 'ri' #pronoun indefinite
+
+    prefix = ["一","某"]
+    suffix = ["个","种","些","样"]
+
+    @classmethod
+    def generate(cls):
+
+        cas = ["".join(p) for p in product(
+            cls.prefix,
+            cls.suffix,
             )] 
         
-        cas3 = ["的话"]
-        return cls.filter(cas1+cas2+cas3)
+        cas2 = ["什么"]
 
-class Query(Phrase):
+        return cas + cas2
+
+class 填充词(Phrase):
+    # 填充词是必定可以去除而不改变原意的
+    tag = 'filler'
+
+    @classmethod
+    def generate(cls):
+        # “的话”显然是，“就是，就”有时用于强调语气，但我们激进一点，将其视为填充词。
+        cas = ["的话","就是","就"]
+
+        return cas 
+
+class 询问语(Phrase):
     tag = 'query'
 
     subject = ["你", ""]
@@ -83,9 +107,9 @@ class Query(Phrase):
         
         case4 = pred_negate_pred
         
-        return cls.filter(case1 + case2 + case3 + case4)
+        return filter(case1 + case2 + case3 + case4)
 
-class Curse(Phrase):
+class 詈语(Phrase):
     tag = 'curse'
 
     w = ["我"]
@@ -126,11 +150,52 @@ class Curse(Phrase):
             cls.d
             )]
 
-        return cls.filter(cas1+cas2+cas3+cas4)
+        return filter(cas1+cas2+cas3+cas4)
+
+class 语气词(Phrase):
+    tag = 'interj'
+
+    @classmethod
+    def generate(cls):
+        s = '了 吗 吧 呀 呃 呗 呢 呦 呵 呵呵 哈 哈哈 哇 哎 哎呀 哎呦 哦 唉 啊 啦 嗯 嘛 嘿 噢 哼 嗨 喽 呗 哩'
+        s = set(s.split())
+        s = s.difference({'了','吗','呢'})
+        return sorted(list(s))
+
+class 口头禅(Phrase):
+    tag = 'pet'
+    @classmethod
+    def generate(cls):
+        l = [
+        '我真的实事求是',
+        '我实事求是',
+        '我跟你们讲',
+        '我跟你讲',
+        '我跟你们说',
+        '我跟你说',
+        '简单来讲',
+        '简单讲',
+        '实事求是',
+        '实事求是讲',
+        '实话实说',
+        '很好理解',
+        '乱七八遭',
+        '就是说',
+        '这就是说',
+        '那就是说',
+        '也就是说',
+        '或者说',
+        ]
+        return l
+
 
 
 # 使用示例
 if __name__ == "__main__":
-    Common.export()
-    Query.export()
-    Curse.export()
+    指示代词.export()
+    不定代词.export()
+    填充词.export()
+    询问语.export()
+    詈语.export()
+    语气词.export()
+    口头禅.export()

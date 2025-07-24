@@ -104,7 +104,7 @@ def init_parser():
     return parser
 
 def main(args):
-    filler_dict_paths = ["常用语", "脏话", "口头禅", "询问语"]
+    filler_dict_paths = ["指示代词", "不定代词", "填充词", "语气词", "詈语", "口头禅", "询问语"]
     fillers_l, fillers_d = load_dict(filler_dict_paths)
     print("load transcript")
     transcript = Transcript.load(Path(args.transcript))
