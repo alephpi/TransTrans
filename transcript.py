@@ -8,7 +8,6 @@ import numpy as np
 from funasr import AutoModel
 from numpy.typing import NDArray
 
-from annotate import Annotation
 from utils import convert_time, load_dict
 
 
@@ -26,8 +25,6 @@ class Transcript:
         self.punc_array: NDArray[np.uint8] = np.ones_like(self.chars, dtype=np.uint8)
         self.is_hanzi: NDArray[np.bool_] = ~np.vectorize(lambda x: x.isascii())(self.chars)
         self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
-
-        self.annotation: Optional[Annotation] = None
 
     @classmethod
     def from_char_timestamp(cls, chars: list[str], timestamps: list[tuple[int, int]]):
