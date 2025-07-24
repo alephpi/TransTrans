@@ -20,3 +20,6 @@ dev = [
     "jupyterlab>=4.4.4",
     "matplotlib>=3.10.3",
 ]
+
+[tool.mypy]
+disable_error_code =["import-untyped"]
