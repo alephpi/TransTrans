@@ -8,6 +8,7 @@ import numpy as np
 from funasr import AutoModel
 from numpy.typing import NDArray
 
+from annotate import Annotation
 from utils import convert_time, load_dict
 
 
@@ -26,7 +27,6 @@ class Transcript:
         self.is_hanzi: NDArray[np.bool_] = ~np.vectorize(lambda x: x.isascii())(self.chars)
         self.mask: NDArray[np.bool_] = np.ones(len(self.chars), dtype=np.bool_) # 用于标记需要保留的字
 
-        from annotate import Annotation
         self.annotation: Optional[Annotation] = None
 
     @classmethod

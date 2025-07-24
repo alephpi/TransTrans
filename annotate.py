@@ -17,7 +17,6 @@ from hanlp.pretrained.pos import (
 from hanlp.pretrained.tok import COARSE_ELECTRA_SMALL_ZH, FINE_ELECTRA_SMALL_ZH
 from numpy.typing import NDArray
 
-from transcript import Transcript, load_punc_model, punctuate
 from utils import load_dict
 
 
@@ -92,6 +91,7 @@ def init_parser():
     return parser
 
 def main(args):
+    from transcript import Transcript, load_punc_model, punctuate
     filler_dict_paths = ["common", "curse", "pet", "query"]
     fillers_l, fillers_d = load_dict(filler_dict_paths)
     print("load transcript")
