@@ -18,8 +18,8 @@ from hanlp.pretrained.pos import (
 from hanlp.pretrained.tok import COARSE_ELECTRA_SMALL_ZH, FINE_ELECTRA_SMALL_ZH
 from numpy.typing import NDArray
 
-from transcript import Transcript, load_punc_model, punctuate
-from utils import load_dict
+from .transcript import Transcript, load_punc_model, punctuate
+from .utils import load_dict
 
 
 class Annotation:

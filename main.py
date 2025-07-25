@@ -1,9 +1,9 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pathlib import Path
 
-from deoral import main as deoral
-from transcript import main as transcript
-from utils import convert_audio, download_audio
+from transtrans.deoral import main as deoral
+from transtrans.transcript import main as transcript
+from transtrans.utils import convert_audio, download_audio
 
 
 def pipeline(args):

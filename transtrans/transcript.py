@@ -8,7 +8,7 @@ import numpy as np
 from funasr import AutoModel
 from numpy.typing import NDArray
 
-from utils import convert_time, load_dict
+from .utils import convert_time, load_dict
 
 
 class Transcript:
