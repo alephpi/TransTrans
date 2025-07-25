@@ -19,6 +19,7 @@ dev = [
     "debugpy>=1.8.15",
     "jupyterlab>=4.4.4",
     "matplotlib>=3.10.3",
+    "pytest>=8.4.1",
 ]
 
 [tool.mypy]
