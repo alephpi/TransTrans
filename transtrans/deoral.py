@@ -1,91 +1,8 @@
 from argparse import ArgumentParser
-from collections import Counter
 from pathlib import Path
-from typing import Dict, Literal, Sequence
 
-import hanlp
-import numpy as np
-from hanlp.components.tokenizers.transformer import (
-    TransformerTagger,
-    TransformerTaggingTokenizer,
-)
-from hanlp.pretrained.pos import (
-    C863_POS_ELECTRA_SMALL,
-    CTB9_POS_ELECTRA_SMALL,
-    PKU_POS_ELECTRA_SMALL,
-)
-from hanlp.pretrained.tok import COARSE_ELECTRA_SMALL_ZH, FINE_ELECTRA_SMALL_ZH
-from numpy.typing import NDArray
-
-from transcript import Transcript, load_punc_model, punctuate
-from utils import load_dict
-
-
-class Annotation:
-    def __init__(self, tokens: list[str], tags: list[str], spans: list[tuple[int, int]]):
-        self.tokens: NDArray[np.str_] = np.array(tokens)
-        self.tags: NDArray[np.str_] = np.array(tags)
-        self.spans: NDArray[np.int32] = np.array(spans)
-        self.mask: NDArray[np.bool_] = np.ones(len(tokens), dtype=bool)
-        self.char_indices: list[int] = []
-
-    def remove(self, indices: list[int]):
-        indices = list(set(indices))
-        self.mask[indices] = False
-        self.update()
-
-    def update(self):
-        # update char-level mask, after all tokens are cleaned, sync the cleaned-version back to char level
-        for span in self.spans[~self.mask]:
-            self.char_indices.extend(range(*span))
-
-        self.tokens = self.tokens[self.mask]
-        self.tags = self.tags[self.mask]
-        self.spans = self.spans[self.mask]
-        self.mask = np.ones(len(self.tokens), dtype=bool)
-    
-    def stats(self):
-        count = Counter(self.tokens)
-        freq_pairs = sorted(count.items(), key=lambda x: x[1], reverse=True)
-        return freq_pairs
-
-    def save(self, file_path):
-        with open(file_path, 'w', encoding='utf-8') as f:
-            for token, tag in zip(self.tokens, self.tags):
-                f.write(f"{token, tag}\n")
-    
-    def __repr__(self):
-        return str([(token, tag) for token, tag in zip(self.tokens, self.tags)])
-
-def load_tok_model(fine=True, dictionary: set[str]=set()):
-    model: TransformerTaggingTokenizer
-    if fine:
-        model = hanlp.load(FINE_ELECTRA_SMALL_ZH)
-    else:
-        model = hanlp.load(COARSE_ELECTRA_SMALL_ZH)
-    model.config.output_spans = True
-    model.dict_combine = dictionary
-    return model
-
-def load_pos_model(standard:Literal["ctb9", "c863", "pku"]="pku", dictionary:Dict[str|Sequence[str],str|Sequence[str]]={}):
-    model: TransformerTagger
-    if standard == "ctb9":
-        model = hanlp.load(CTB9_POS_ELECTRA_SMALL)
-    elif standard == "c863":
-        model = hanlp.load(C863_POS_ELECTRA_SMALL)
-    else:
-        model = hanlp.load(PKU_POS_ELECTRA_SMALL)
-    model.dict_tags = dictionary
-    return model
-
-def tok_tag(tok_model, pos_model, text):
-    res_tok = tok_model(text)
-    tokens = [i[0] for i in res_tok]
-    spans = [i[1:] for i in res_tok]
-    tags = pos_model(tokens)
-    return Annotation(tokens, tags, spans)
-
-
+from .annotate import Annotation
+from .constants import IGNORE_TAGS
 
 # def remove_english(text: list[str]):
 #     """
@@ -98,8 +15,8 @@ def tok_tag(tok_model, pos_model, text):
 #             remove_indices.append(i)
 #     return remove_indices
 
-def match_fillers(tokens: list[str], tags: list[str]):
-    # # 用分词的结果而非纯字符串正则匹配，避免在错误位置断词导致误删，例如“曹操他妈”被误匹配“操他妈”。
+# # 用分词的结果而非纯字符串正则匹配，避免在错误位置断词导致误删，例如“曹操他妈”被误匹配“操他妈”。
+# def match_fillers(tokens: list[str], tags: list[str]):
     # matched_indices: list[int] = []
     # max_len_filler = max(len(f) for f in fillers)
     # prefix_set = set()
@@ -123,54 +40,100 @@ def match_fillers(tokens: list[str], tags: list[str]):
     #         if current_str in fillers:
     #             matched_indices.extend(range(i,j+1))
 
-    # instead we use hanlp built-in dict merge and tagging to match fillers
+    # return matched_indices
+
+
+# instead we use hanlp built-in dict merge and tagging to match fillers
+def match_fillers(tokens: list[str], tags: list[str]):
     matched_indices = []
     for i, tag in enumerate(tags):
-        if tag in ['query','curse','pet']:
-            matched_indices.append(i)
-        elif tokens[i] == '的话':
+        if tag in ['query','curse','pet','filler']:
             matched_indices.append(i)
     return matched_indices
 
 def match_ambiguous_fillers(tokens:list[str], tags:list[str]):
     # ambiguous filler that needs to be matched with tag and context info
     matched_indices: list[int] = []
-    for i in range(len(tokens)):
-        if tokens[i] in ["就是","就"] and tokens[i+1] == "不是":
-            matched_indices.append(i)
-        # elif tokens[i] == "这个" and tags[i-1] == tags[i+1] == 'r' and tokens[i-1] == tokens[i+1]:
-            # 代词 + 这个 + 代词，如“你这个你”
-            # matched_indices.extend((i-1,i))
-        elif tokens[i] == "这个" and tags[i-1] != 'c': # 前面不是连词，即“这个”不作句首主语
-            matched_indices.append(i)
-        elif tags[i] == "common":
-            # if tag[i+1] == 
-            ...
     return matched_indices
 
-def match_exclamations(tokens: list[str], tags: list[str]):
+def match_interjection(tokens: list[str], tags: list[str]):
     matched_indices: list[int] = []
     for i in range(len(tokens)):
-        if tags[i] == 'e' or tokens[i] == '啊':
+        if tags[i] in ['interj']:
             matched_indices.append(i)
-        elif tags[i:i+2] == ['的','啊']:
-            matched_indices.extend((i,i+1))
     return matched_indices
 
 def match_breaks():
     ...
 
 def match_repetitions(tokens: list[str], tags:list[str], ngram=5):
+    # 匹配 n-gram 重复
     win_len = ngram
     matched_indices: list[int] = []
-    for i in range(0, len(tokens) - 1):
+    for i in range(len(tokens)):
         prev_string = "".join(tokens[i:i+win_len])
         next_string = "".join(tokens[i+win_len:i+2*win_len])
         # 若 n-gram 重复，则将删去前面的 n-gram，这里的重复可以是前缀重复
         # 例如'不','不会'
         if next_string.startswith(prev_string):
             matched_indices.extend(range(i, i+win_len))
-        # 因为hanlp的分词较细，我们只需要对1-gram处理即可。
+    return matched_indices
+
+def match_repetitions_robust(tokens: list[str], tags:list[str], ngram: int, ignore_tags:list[str], match_limit: int=20):
+    # 匹配忽略特定词性的 n-gram 重复，例如“我感到快乐”和“我感到啊快乐”重复
+    win_len = ngram
+    matched_indices: list[int] = []
+    token_len = len(tokens)
+    i = 0
+    while i < token_len:
+        # print(f"{i=}")
+        if tags[i] in ignore_tags:
+            i += 1
+            continue
+
+        prev_tokens, prev_indices, len_prev_tokens, j = [], [], 0, i
+        while len_prev_tokens < win_len and j < token_len:
+            # print(f"{j=}")
+            if tags[j] not in ignore_tags:
+                prev_tokens.append(tokens[j])
+                prev_indices.append(j)
+                len_prev_tokens += 1
+            j += 1
+        if len_prev_tokens < win_len:
+            i += 1
+            continue
+        prev_string = "".join(prev_tokens)
+
+        next_tokens, next_indices, len_next_tokens, k = [], [], 0, j
+        # 这里有个问题是，如果从prev_tokens到next_tokens中间的忽略词过长，
+        # 就会导致prev_tokens与很远处的next_tokens匹配，
+        # 这种重复可能并不是我们想匹配的
+        # 因此有必要给next_tokens的匹配距离加一个限制
+        while len_next_tokens < win_len and k < token_len and k-j < match_limit:
+            # print(f"{k=}")
+            if tags[k] not in ignore_tags:
+                next_tokens.append(tokens[k])
+                next_indices.append(k)
+                len_next_tokens += 1
+            k += 1
+        if len_next_tokens < win_len:
+            i += 1
+            continue
+        next_string = "".join(next_tokens)
+
+        if next_string.startswith(prev_string):
+            # 返回prev tokens的索引（包含中间跳过的忽略词）
+            # matched_indices.extend(range(prev_indices[0], prev_indices[-1]+1))
+
+            # 返回从prev tokens起始到next tokens起始的索引（包含中间跳过的忽略词）
+            matched_indices.extend(range(prev_indices[0], next_indices[0]))
+
+            # 返回next tokens的索引（包含中间跳过的忽略词）
+            # matched_indices.extend(range(next_indices[0], next_indices[-1]+1))
+            i = next_indices[0]
+
+        i = i + 1
+
     return matched_indices
 
 
@@ -256,30 +219,8 @@ def save_text(text, args):
         f.write(text)
 
 def main(args):
-    filler_dict_paths = ["common", "curse", "pet", "query"]
-    fillers_l, fillers_d = load_dict(filler_dict_paths)
-    print("load transcript")
-    transcript = Transcript.from_json(Path(args.text))
-    punc_model = load_punc_model()
-    transcript = punctuate(punc_model, transcript)
-
-    # transcript.set_qikou(ms=1000)
-    transcript.stats()
-
-    print("remove english")
-    transcript.chinese_only()
-    transcript.stats()
-
-    tok_model = load_tok_model(fine=True, dictionary=set(fillers_l).union(set(fillers_d.keys())))
-    pos_model = load_pos_model(dictionary=fillers_d) # type: ignore
-    annotation = tok_tag(tok_model, pos_model, transcript.text)
-    annotation.save(Path(args.text).with_name("transcript.annotation"))
-    freq_stats =annotation.stats()
-    with open(Path(args.text).with_name("freq_stats.txt"), 'w', encoding='utf-8') as f:
-        for token, freq in freq_stats:
-            f.write(f"{token} {freq}\n")
-
     # matched_indices = match_fillers(annotation.tokens.tolist(), fillers)
+    annotation = Annotation()
     matched_indices = match_fillers(annotation.tokens.tolist(), tags=annotation.tags.tolist())
     annotation.remove(matched_indices)
     print(f"removing fillers: {len(matched_indices)} tokens removed")
@@ -288,7 +229,7 @@ def main(args):
     annotation.remove(matched_indices)
     print(f"removing ambiguous fillers: {len(matched_indices)} tokens removed")
 
-    matched_indices = match_exclamations(annotation.tokens.tolist(), annotation.tags.tolist())
+    matched_indices = match_interjection(annotation.tokens.tolist(), annotation.tags.tolist())
     annotation.remove(matched_indices)
     print(f"removing exclamations: {len(matched_indices)} tokens removed")
 
