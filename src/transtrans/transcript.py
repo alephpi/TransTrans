@@ -179,14 +179,14 @@ def punctuate(model: AutoModel, transcript: Transcript):
 
 def init_parser():
     parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
-    parser.add_argument("-i","--input_file", required=False, type=str, default='data/BV1iddQYQE7D/audio.wav', help="input audio file")
+    parser.add_argument("-i","--input_file", required=False, type=str, help="input audio file")
     parser.add_argument("-w","--hotwords", required=False, default='hot', type=str, help="hotword dict file")
     return parser
 
 def main(args):
     audio = Path(args.input_file)
     asr_model = load_asr_model()
-    hotwords, _ = load_dict(args.hotwords)
+    hotwords = load_dict(args.hotwords)[0] if getattr(args, "hotwords", None) else []
     transcript = asr(asr_model, audio, hotwords)
     # this is only for to_txt with punc,
     # notice that if we create transcript from json,

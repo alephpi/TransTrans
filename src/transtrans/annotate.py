@@ -115,15 +115,14 @@ def load_pos_model(standard:Literal["ctb9", "c863", "pku"]="pku", dictionary:Dic
 
 def init_parser():
     parser = ArgumentParser()
-    parser.add_argument("transcript", type=str, help="transcript pickle file")
-    # parser.add_argument("-a", "--aggressive", action="store_true", default=False, help="if aggressive, remove all fillers rather than replacing")
+    parser.add_argument("-t","--transcript", type=str, help="transcript json file")
     return parser
 
 def main(args):
     filler_dict_paths = ["指示代词", "不定代词", "填充词", "语气词", "詈语", "口头禅", "询问语"]
     fillers_l, fillers_d = load_dict(filler_dict_paths)
     print("load transcript")
-    transcript = Transcript.load(Path(args.transcript))
+    transcript = Transcript.from_json(Path(args.transcript))
 
     # temporarily ignore english
     # TODO: support English deoralization

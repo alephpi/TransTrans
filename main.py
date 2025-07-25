@@ -1,8 +1,7 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pathlib import Path
 
-from transtrans.deoral import main as deoral
-from transtrans.transcript import main as transcript
+from transtrans import annotator, deoralor, transcriptor
 from transtrans.utils import convert_audio, download_audio
 
 
@@ -10,9 +9,11 @@ def pipeline(args):
     download_audio(args.bvid)
     audio = convert_audio(args.bvid)
     args.input_file = audio
-    transcript(args)
-    args.text = audio.parent / "transcript.txt"
-    deoral(args)
+    transcriptor(args)
+    args.transcript = audio.parent / "transcript.json"
+    annotator(args)
+    args.annotation = audio.parent / "annotation.json"
+    deoralor(args)
 
 if __name__ == "__main__":
     parser = ArgumentParser(
@@ -22,6 +23,7 @@ if __name__ == "__main__":
 
     # 全局选项：控制Pipeline流程
     parser.add_argument("--bvid", type=str, help="bv number")
+    parser.add_argument("--hotwords", type=str, help="hotwords dict")
     parser.add_argument("--debug", action='store_true', help="debug mode")
     args = parser.parse_args()
     if args.debug:

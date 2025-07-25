@@ -1,1 +1,1 @@
-{"exclude": [".venv","data"]}
+{"exclude": ["**/.venv/**","data"]}

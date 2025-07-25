@@ -12,7 +12,7 @@ IL = {'i','l'}
 INTERJ = {'interj'}
 
 CONTENT_TAGS = set.union(set(), NOUN, VERB, ADJ, NUM, PRON, ADV, SPACE, TIME, E)
-IGNORE_TAGS = set.union(set(), PRON, {'c'}, {'u'}, {'ri', 'rd'})
+IGNORE_TAGS = set.union(set(), PRON, {'p'}, {'c'}, {'u'}, {'ri', 'rd'})
 # IGNORE_TAGS = set.union(set(), {'c'}, {'u'})
 
 PKU_DICT = {

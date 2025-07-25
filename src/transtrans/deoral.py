@@ -297,7 +297,8 @@ def main(args):
     # text = remove_short_phrases(text)
     annotation.to_json(Path(args.annotation).with_name("annotation.deoral.json"))
     # transcript.to_txt(Path(args.text).with_name("transcript_deoral.txt"))
-    transcript.to_txt(Path(args.transcript).with_name("transcript.deoral.txt"), with_punc=True)
+    transcript.to_txt(Path(args.transcript).with_name("transcript.deoral.with_punc.txt"), with_punc=True)
+    transcript.to_txt(Path(args.transcript).with_name("transcript.deoral.txt"), with_punc=False)
     transcript.to_json(Path(args.transcript).with_name("transcript.deoral.json"))
 
 def init_parser():
