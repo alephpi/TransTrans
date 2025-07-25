@@ -31,7 +31,11 @@ class Annotation:
         self.char_indices: list[int] = []
 
     def remove(self, indices: list[int]):
-        indices = list(set(indices))
+        """remove by indices
+
+        Args:
+            indices (list[int]): indices to remove, make sure the `indices` are unique
+        """
         self.mask[indices] = False
         self.update()
 
@@ -78,6 +82,9 @@ class Annotation:
     
     def __eq__(self, other):
         return np.array_equal(self.tokens,other.tokens) and np.array_equal(self.tags,other.tags) and np.array_equal(self.spans,other.spans)
+    
+    def __len__(self):
+        return len(self.tokens)
 
 def load_tok_model(fine=True, dictionary: set[str]=set()):
     model: TransformerTaggingTokenizer

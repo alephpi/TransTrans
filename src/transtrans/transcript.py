@@ -35,7 +35,11 @@ class Transcript:
         self.update()
 
     def remove(self, indices: list[int]):
-        indices = list(set(indices))
+        """remove by indices
+
+        Args:
+            indices (list[int]): indices to be removed, make sure the `indices` are unique.
+        """
         self.mask[indices] = False
         self.update()
 

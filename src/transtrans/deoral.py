@@ -50,19 +50,19 @@ def match_fillers(tokens: list[str], tags: list[str]):
     for i, tag in enumerate(tags):
         if tag in ['query','curse','pet','filler']:
             matched_indices.append(i)
-    return matched_indices
+    return sorted(set(matched_indices))
 
 def match_ambiguous_fillers(tokens:list[str], tags:list[str]):
     # ambiguous filler that needs to be matched with tag and context info
     matched_indices: list[int] = []
-    return matched_indices
+    return sorted(set(matched_indices))
 
 def match_interjection(tokens: list[str], tags: list[str]):
     matched_indices: list[int] = []
     for i in range(len(tokens)):
         if tags[i] in ['interj']:
             matched_indices.append(i)
-    return matched_indices
+    return sorted(set(matched_indices))
 
 def match_breaks():
     ...
@@ -78,7 +78,7 @@ def match_repetitions(tokens: list[str], tags:list[str], ngram=5):
         # 例如'不','不会'
         if next_string.startswith(prev_string):
             matched_indices.extend(range(i, i+win_len))
-    return matched_indices
+    return sorted(set(matched_indices))
 
 def match_repetitions_robust(tokens: list[str], tags:list[str], ngram: int, ignore_tags:set[str], match_limit: int=20):
     # 匹配忽略特定词性的 n-gram 重复，例如“我感到快乐”和“我感到啊快乐”重复
@@ -135,7 +135,7 @@ def match_repetitions_robust(tokens: list[str], tags:list[str], ngram: int, igno
 
         i = i + 1
 
-    return matched_indices
+    return sorted(set(matched_indices))
 
 
 def match_pieces(tokens: list[str], tags: list[str], pad=5):
@@ -159,7 +159,7 @@ def match_pieces(tokens: list[str], tags: list[str], pad=5):
         # elif tags
 
     matched_indices.extend(pron_clusters)
-    return matched_indices
+    return sorted(set(matched_indices))
 
 def match_orphan_phrases():
     # after removing all above, split the sentence by punctuation and remove short phrases
@@ -222,8 +222,14 @@ def save_text(text, args):
 def main(args):
     # matched_indices = match_fillers(annotation.tokens.tolist(), fillers)
     transcript = Transcript.from_json(Path(args.transcript))
-    transcript.init_punc_array()
     annotation = Annotation.from_json(Path(args.annotation))
+
+    print("removing english")
+    transcript.chinese_only()
+    transcript.init_punc_array()
+    transcript.stats()
+    
+    print(f"{len(annotation.tokens)} tokens in beginning")
     matched_indices = match_fillers(annotation.tokens.tolist(), tags=annotation.tags.tolist())
     annotation.remove(matched_indices)
     print(f"removing fillers: {len(matched_indices)} tokens removed")
@@ -238,46 +244,66 @@ def main(args):
 
     print("remove breaks")
 
-    print("remove repetitions")
-    Ngram = 10
-    ngram = 1
-    while ngram <= Ngram:
-        matched_indices = match_repetitions(annotation.tokens.tolist(), annotation.tags.tolist(), ngram)
+    print("removing repetitions")
+    s, ngram, ngram_min, ngram_max = 0, 1, 1, 10
+    ngram_max = 10
+    while ngram <= ngram_max:
+        matched_indices = match_repetitions(
+            annotation.tokens.tolist(), 
+            annotation.tags.tolist(), 
+            ngram
+            )
         if (l:=len(matched_indices)) > 0:
+            s += l
             annotation.remove(matched_indices)
             print(f"removing {ngram}-gram repetitions: {l} tokens removed")
-            if ngram > 1:
+            if ngram > ngram_min:
                 ngram = 1
         else:
             ngram += 1
+    print(f"{s} tokens removed in total")
+    annotation.to_txt(Path(args.annotation).with_name("annotation.deoral-stage1.txt"))
 
-    while ngram <= Ngram:
-        matched_indices = match_repetitions_robust(annotation.tokens.tolist(), annotation.tags.tolist(), ngram, ignore_tags=IGNORE_TAGS)
+    s, ngram, ngram_min, ngram_max = 0, 1, 1, 10
+    while ngram <= ngram_max:
+        matched_indices = match_repetitions_robust(
+            annotation.tokens.tolist(), 
+            annotation.tags.tolist(), 
+            ngram, 
+            ignore_tags=IGNORE_TAGS, 
+            match_limit=100
+            )
         if (l:=len(matched_indices)) > 0:
+            s += l
             annotation.remove(matched_indices)
             print(f"removing {ngram}-gram repetitions(robust mode): {l} tokens removed")
-            if ngram > 1:
-                ngram = 1
+            if ngram > ngram_min:
+                ngram = ngram_min
         else:
             ngram += 1
+    print(f"{s} tokens removed in total")
+    annotation.to_txt(Path(args.annotation).with_name("annotation.deoral-stage2.txt"))
+
     # matched_indices = match_pieces(annotation.tokens.tolist(), annotation.tags.tolist())
     # annotation.remove(matched_indices)
     # print(f"removing pieces: {len(matched_indices)} tokens removed")
+
+    print(f"{len(annotation.tokens)} tokens at last")
 
     # sync the cleaned mask from annotation
     transcript.remove(annotation.char_indices)
     transcript.stats()
 
     # text = remove_short_phrases(text)
-    annotation.to_json(Path(args.text).with_name("annotation.deoral.json"))
+    annotation.to_json(Path(args.annotation).with_name("annotation.deoral.json"))
     # transcript.to_txt(Path(args.text).with_name("transcript_deoral.txt"))
-    transcript.to_txt(Path(args.text).with_name("transcript.deoral.txt"), with_punc=True)
-    transcript.to_json(Path(args.text).with_name("transcript.deoral.json"))
+    transcript.to_txt(Path(args.transcript).with_name("transcript.deoral.txt"), with_punc=True)
+    transcript.to_json(Path(args.transcript).with_name("transcript.deoral.json"))
 
 def init_parser():
     parser = ArgumentParser()
-    parser.add_argument("-t", type=str, help="transcript json file")
-    parser.add_argument("-a", type=str, help="annotation json file")
+    parser.add_argument("-t","--transcript", type=str, help="transcript json file")
+    parser.add_argument("-a","--annotation", type=str, help="annotation json file")
     return parser
 
 if __name__ == '__main__':
