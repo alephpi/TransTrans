@@ -1,4 +1,4 @@
-import pickle
+import json
 from argparse import ArgumentParser
 from collections import Counter
 from pathlib import Path
@@ -18,7 +18,7 @@ from hanlp.pretrained.pos import (
 from hanlp.pretrained.tok import COARSE_ELECTRA_SMALL_ZH, FINE_ELECTRA_SMALL_ZH
 from numpy.typing import NDArray
 
-from .transcript import Transcript, load_punc_model, punctuate
+from .transcript import Transcript
 from .utils import load_dict
 
 
@@ -56,19 +56,28 @@ class Annotation:
             for token, tag in zip(self.tokens, self.tags):
                 f.write(f"{token} {tag}\n")
         print(f"annotation saved to {file_path}")
- 
+    
     @classmethod
-    def load(cls, file_path) -> 'Annotation':
-        with open(file_path, "rb") as f:
-            return pickle.load(f)
+    def from_json(cls, file_path: Path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        tokens, tags, spans = [],[],[]
+        for (token, tag, span) in data:
+            tokens.append(token)
+            tags.append(tag)
+            spans.append(span)
+        return cls(tokens, tags, spans)
 
-    def save(self, file_path):
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
-        print(f"annotation dumped to {file_path}")
-
+    def to_json(self, file_path):
+        data = list(zip(self.tokens, self.tags, self.spans.tolist()))
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+ 
     def __repr__(self):
         return str([(token, tag) for token, tag in zip(self.tokens, self.tags)])
+    
+    def __eq__(self, other):
+        return np.array_equal(self.tokens,other.tokens) and np.array_equal(self.tags,other.tags) and np.array_equal(self.spans,other.spans)
 
 def load_tok_model(fine=True, dictionary: set[str]=set()):
     model: TransformerTaggingTokenizer
@@ -109,10 +118,8 @@ def main(args):
     print("load transcript")
     transcript = Transcript.load(Path(args.transcript))
 
-    # punc_model = load_punc_model()
-    # transcript = punctuate(punc_model, transcript)
-    # transcript.set_qikou(ms=1000)
-
+    # temporarily ignore english
+    # TODO: support English deoralization
     print("remove english")
     transcript.chinese_only()
     transcript.stats()
@@ -123,7 +130,7 @@ def main(args):
         .append(tok_model, output_key=('tokens','spans'))\
         .append(pos_model,input_key='tokens', output_key='tags')
     annotation = Annotation(**pipeline(transcript.text))
-    annotation.save(Path(args.transcript).parent/"annotation.pkl")
+    annotation.to_json(Path(args.transcript).parent/"annotation.json")
     annotation.to_txt(Path(args.transcript).parent/"annotation.txt")
 
     # stats

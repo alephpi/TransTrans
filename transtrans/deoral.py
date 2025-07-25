@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .annotate import Annotation
 from .constants import IGNORE_TAGS
+from .transcript import Transcript
 
 # def remove_english(text: list[str]):
 #     """
@@ -79,7 +80,7 @@ def match_repetitions(tokens: list[str], tags:list[str], ngram=5):
             matched_indices.extend(range(i, i+win_len))
     return matched_indices
 
-def match_repetitions_robust(tokens: list[str], tags:list[str], ngram: int, ignore_tags:list[str], match_limit: int=20):
+def match_repetitions_robust(tokens: list[str], tags:list[str], ngram: int, ignore_tags:set[str], match_limit: int=20):
     # 匹配忽略特定词性的 n-gram 重复，例如“我感到快乐”和“我感到啊快乐”重复
     win_len = ngram
     matched_indices: list[int] = []
@@ -220,7 +221,9 @@ def save_text(text, args):
 
 def main(args):
     # matched_indices = match_fillers(annotation.tokens.tolist(), fillers)
-    annotation = Annotation()
+    transcript = Transcript.from_json(Path(args.transcript))
+    transcript.init_punc_array()
+    annotation = Annotation.from_json(Path(args.annotation))
     matched_indices = match_fillers(annotation.tokens.tolist(), tags=annotation.tags.tolist())
     annotation.remove(matched_indices)
     print(f"removing fillers: {len(matched_indices)} tokens removed")
@@ -248,6 +251,15 @@ def main(args):
         else:
             ngram += 1
 
+    while ngram <= Ngram:
+        matched_indices = match_repetitions_robust(annotation.tokens.tolist(), annotation.tags.tolist(), ngram, ignore_tags=IGNORE_TAGS)
+        if (l:=len(matched_indices)) > 0:
+            annotation.remove(matched_indices)
+            print(f"removing {ngram}-gram repetitions(robust mode): {l} tokens removed")
+            if ngram > 1:
+                ngram = 1
+        else:
+            ngram += 1
     # matched_indices = match_pieces(annotation.tokens.tolist(), annotation.tags.tolist())
     # annotation.remove(matched_indices)
     # print(f"removing pieces: {len(matched_indices)} tokens removed")
@@ -257,15 +269,15 @@ def main(args):
     transcript.stats()
 
     # text = remove_short_phrases(text)
-    annotation.save(Path(args.text).with_name("transcript_deoral.annotation"))
+    annotation.to_json(Path(args.text).with_name("annotation.deoral.json"))
     # transcript.to_txt(Path(args.text).with_name("transcript_deoral.txt"))
-    transcript.to_txt(Path(args.text).with_name("transcript_deoral.txt"), with_punc=True)
-    transcript.to_json(Path(args.text).with_name("transcript_deoral.json"))
+    transcript.to_txt(Path(args.text).with_name("transcript.deoral.txt"), with_punc=True)
+    transcript.to_json(Path(args.text).with_name("transcript.deoral.json"))
 
 def init_parser():
     parser = ArgumentParser()
-    parser.add_argument("text", type=str, help="text to process")
-    # parser.add_argument("-a", "--aggressive", action="store_true", default=False, help="if aggressive, remove all fillers rather than replacing")
+    parser.add_argument("-t", type=str, help="transcript json file")
+    parser.add_argument("-a", type=str, help="annotation json file")
     return parser
 
 if __name__ == '__main__':

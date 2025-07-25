@@ -1,5 +1,4 @@
 import json
-import pickle
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pathlib import Path
 from typing import Optional
@@ -31,17 +30,6 @@ class Transcript:
         assert len(chars) == len(timestamps), "length of chars and timestamps mismatch"
         return cls(chars, timestamps)
 
-    @classmethod
-    def from_json(cls, file_path: Path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            chars = []
-            timestamps = []
-            for d in data:
-                chars.append(d[0])
-                timestamps.append(tuple(d[1]))
-        return cls(chars, timestamps)
-    
     def chinese_only(self):
         self.mask = self.is_hanzi
         self.update()
@@ -66,7 +54,7 @@ class Transcript:
         self.is_hanzi = self.is_hanzi[self.mask]
         self.mask = np.ones(len(self.chars), dtype=np.bool_)
 
-    def update_punc_array(self, low=None, high=None):
+    def init_punc_array(self, low=None, high=None):
         low = self.qikou if low is None else low
         high = 3*self.qikou if high is None else high
         self.punc_array[(low < self.char_intervals) & (self.char_intervals < high)] = 2
@@ -79,7 +67,6 @@ class Transcript:
     @property
     def text_with_punc(self):
         puncs = self.punc_list[self.punc_array]
-        # puncs = (self.punc_list[punc_id] for punc_id in self.punc_array)
         chars_with_punc = np.char.add(self.chars_format, puncs)
         return "".join(chars_with_punc)
 
@@ -112,9 +99,19 @@ class Transcript:
         time_rate = 1 - self.time_len / self.original_duration
         print(f"压缩率：文本 {text_rate*100:.2f}%，音频 {time_rate*100:.2f}%")
 
+    @classmethod
+    def from_json(cls, file_path: Path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            chars, timestamps = [], []
+            for (char, timestamp) in data:
+                chars.append(char)
+                timestamps.append(tuple(timestamp))
+        return cls(chars, timestamps)
+
     def to_json(self, file_path):
         with open(file_path, "w", encoding="utf-8") as f:
-            data = list(zip(self.chars.tolist(), self.timestamps.tolist()))
+            data = list(zip(self.chars, self.timestamps.tolist()))
             json.dump(data, f, ensure_ascii=False)
 
     def to_txt(self, file_path, with_punc=False):
@@ -124,15 +121,8 @@ class Transcript:
             else:
                 f.write(self.text)
 
-    @classmethod
-    def load(cls, file_path) -> 'Transcript':
-        with open(file_path, "rb") as f:
-            return pickle.load(f)
-
-    def save(self, file_path):
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
-        print(f"transcript dumped to {file_path}")
+    def __eq__(self, other):
+        return np.array_equal(self.chars, other.chars) and np.array_equal(self.timestamps, other.timestamps)
 
 def load_asr_model():
     # paraformer-zh is a multi-functional asr model
@@ -194,9 +184,12 @@ def main(args):
     asr_model = load_asr_model()
     hotwords, _ = load_dict(args.hotwords)
     transcript = asr(asr_model, audio, hotwords)
-    transcript.update_punc_array()
+    # this is only for to_txt with punc,
+    # notice that if we create transcript from json,
+    # punc_array needs to be re-updated
+    transcript.init_punc_array()
     transcript.to_txt(audio.parent / "transcript.txt", with_punc=True)
-    transcript.save(audio.parent / "transcript.pkl")
+    transcript.to_json(audio.parent / "transcript.json")
 
 if __name__ == "__main__":
     parser = init_parser()

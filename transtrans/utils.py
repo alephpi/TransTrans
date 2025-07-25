@@ -1,4 +1,5 @@
 import os
+import pickle
 from pathlib import Path
 
 DICT_DIR = "dicts"
@@ -58,3 +59,11 @@ def export(transcript, audio: Path):
             print(f'{start}->{end}, {s["text"]}', file=f)
     with open(txt, "w", encoding="utf-8") as f:
         print(transcript[0]['text'], file=f)
+
+def load(file_path):
+    with open(file_path, "rb") as f:
+        return pickle.load(f)
+
+def save(obj, file_path):
+    with open(file_path, "wb") as f:
+        pickle.dump(obj, f)
