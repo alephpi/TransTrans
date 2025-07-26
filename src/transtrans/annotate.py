@@ -2,7 +2,7 @@ import json
 from argparse import ArgumentParser
 from collections import Counter
 from pathlib import Path
-from typing import Dict, Literal, Sequence
+from typing import Dict, Iterator, Literal, Sequence
 
 import hanlp
 import numpy as np
@@ -57,12 +57,12 @@ class Annotation:
 
     def to_txt(self, file_path):
         with open(file_path, 'w', encoding='utf-8') as f:
-            for token, tag in zip(self.tokens, self.tags):
+            for token, tag, _ in self:
                 f.write(f"{token} {tag}\n")
         print(f"annotation saved to {file_path}")
     
     @classmethod
-    def from_json(cls, file_path: Path):
+    def from_json(cls, file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         tokens, tags, spans = [],[],[]
@@ -73,18 +73,24 @@ class Annotation:
         return cls(tokens, tags, spans)
 
     def to_json(self, file_path):
-        data = list(zip(self.tokens, self.tags, self.spans.tolist()))
+        data = list(self)
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
  
     def __repr__(self):
-        return str([(token, tag) for token, tag in zip(self.tokens, self.tags)])
+        return str([(token, tag) for token, tag, _ in self])
     
     def __eq__(self, other):
         return np.array_equal(self.tokens,other.tokens) and np.array_equal(self.tags,other.tags) and np.array_equal(self.spans,other.spans)
     
     def __len__(self):
         return len(self.tokens)
+    
+    def __iter__(self) -> Iterator[tuple[str, str, list[int]]]:
+        return zip(self.tokens, self.tags, self.spans.tolist())
+    
+    def __getitem__(self,idx):
+        return self.tokens[idx], self.tags[idx], self.spans[idx]
 
 def load_tok_model(fine=True, dictionary: set[str]=set()):
     model: TransformerTaggingTokenizer

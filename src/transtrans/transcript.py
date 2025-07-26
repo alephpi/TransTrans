@@ -1,7 +1,7 @@
 import json
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 import numpy as np
 from funasr import AutoModel
@@ -104,7 +104,7 @@ class Transcript:
         print(f"压缩率：文本 {text_rate*100:.2f}%，音频 {time_rate*100:.2f}%")
 
     @classmethod
-    def from_json(cls, file_path: Path):
+    def from_json(cls, file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             chars, timestamps = [], []
@@ -115,7 +115,7 @@ class Transcript:
 
     def to_json(self, file_path):
         with open(file_path, "w", encoding="utf-8") as f:
-            data = list(zip(self.chars, self.timestamps.tolist()))
+            data = list(self)
             json.dump(data, f, ensure_ascii=False)
 
     def to_txt(self, file_path, with_punc=False):
@@ -127,6 +127,16 @@ class Transcript:
 
     def __eq__(self, other):
         return np.array_equal(self.chars, other.chars) and np.array_equal(self.timestamps, other.timestamps)
+    
+    def __iter__(self) -> Iterator[tuple[str, list[int]]]:
+        return zip(self.chars, self.timestamps.tolist())
+    
+    def __getitem__(self, idx):
+        return self.chars[idx], self.timestamps[idx]
+    
+    def __len__(self):
+        return len(self.chars)
+
 
 def load_asr_model():
     # paraformer-zh is a multi-functional asr model
@@ -152,10 +162,10 @@ def load_punc_model():
     )
     return model
 
-def asr(model: AutoModel, audio_file: Path, hotwords=[]):
+def asr(model: AutoModel, audio_file: str, hotwords=[]):
     """转录文本+字符级时间戳"""
     transcript = model.generate(
-        input=str(audio_file),
+        input=audio_file,
         batch_size_s=300,
         hotword=" ".join(hotwords),
         sentence_timestamp = False
@@ -184,7 +194,7 @@ def init_parser():
     return parser
 
 def main(args):
-    audio = Path(args.input_file)
+    audio = args.input_file
     asr_model = load_asr_model()
     hotwords = load_dict(args.hotwords)[0] if getattr(args, "hotwords", None) else []
     transcript = asr(asr_model, audio, hotwords)
@@ -192,8 +202,8 @@ def main(args):
     # notice that if we create transcript from json,
     # punc_array needs to be re-updated
     transcript.init_punc_array()
-    transcript.to_txt(audio.parent / "transcript.txt", with_punc=True)
-    transcript.to_json(audio.parent / "transcript.json")
+    transcript.to_txt(Path(audio).parent / "transcript.txt", with_punc=True)
+    transcript.to_json(Path(audio).parent / "transcript.json")
 
 if __name__ == "__main__":
     parser = init_parser()
