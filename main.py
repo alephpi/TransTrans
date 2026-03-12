@@ -8,7 +8,7 @@ from transtrans.utils import convert_audio, download_audio
 def pipeline(args):
     download_audio(args.bvid)
     audio = convert_audio(args.bvid)
-    args.input_file = audio
+    args.input_file = str(audio)
     transcriptor(args)
     args.transcript = audio.parent / "transcript.json"
     annotator(args)
