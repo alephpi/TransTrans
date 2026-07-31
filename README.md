@@ -130,9 +130,15 @@ uv python main.py --bvid BV1iddQYQE7D --hotwords dict/热词
    3. 在“吗、呢、吧”后添加问号
    4. 在部分口头禅后添加逗号
    5. 在口水词后添加逗号
+   6. 在连词前添加句号
    
 8. 现在的问题在于仅仅停留于词性标注的去重不足以满足我们的需求，一些较为复杂的冗余文本，如断头断尾句需要句法分析来判断其成分是否完整，而 HanLP 的句法分析模型（DEP，CON 等等）无不需要首先分句，而即便按照 7 中的音句分法，我们还是会遇到非常棘手的短句情况。这一部分需要留待将来完成。
 
+9. 我们可以考虑用移动平均来计算瞬时语速，从而更精细的进行断句。
+
+10. 考虑采用一个新的 punctuate 模块对 transcript 类或者 annotation 类作句读，避免过早的将复杂的、实验性的句读逻辑与已经稳定的 transcript 和 annotation 模块混杂在一起。
+
+11. 我们可以选择同时采用 transcript 提供的特征（如时间戳）和 annotation 提供的特征（如词性，特别是连词、语气词）对文本作断句。而后我们需要确保在 deoral 阶段，不去除标点符号（如`match_repetition`不会匹配标点，而`match_repetition_robust`会跳过标点）
 ## 模型的一些注意事项 
 
 ### 语音识别模型
@@ -144,8 +150,11 @@ uv python main.py --bvid BV1iddQYQE7D --hotwords dict/热词
 `COARSE_ELECTRA_SMALL_ZH`，`FINE_ELECTRA_SMALL_ZH`训练自 9970 万字的全世界最大中文分词（chinese word segmentation,CWS）语料库，F1 > 98%。
 三万字的分词速度：4s
 ### 句子成分模型（POS）
+
 `PKU_POS_ELECTRA_SMALL`：准确率 97.55%
+
 `CTB9_POS_ELECTRA_SMALL`：准确率 96.26%
+
 `C863_POS_ELECTRA_SMALL`：准确率 95.19%
 我们选择 PKU 标准。
 
