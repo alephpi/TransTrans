@@ -1,10 +1,10 @@
 [basic]
 dir = "./data/"
 audio_quality = 30280
-subpath_template = "{bvid}/audio"
+subpath_template = "{bvid}"
 
 [resource]
-require_video = false
+require_video = true
 require_audio = true
 require_danmaku = false
 require_subtitle = false
